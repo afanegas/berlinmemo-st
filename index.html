@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Berlin Straßen Map</title>
+  <meta name="description" content="Interactive map of Berlin's important streets." />
+
+  <!-- Google Fonts for Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+
+  <style>
+    #custom-tooltip {
+      position: absolute;
+      pointer-events: none;
+      z-index: 1000;
+      transform: translate(-50%, -150%) scale(0.95);
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0;
+    }
+
+    #custom-tooltip.visible {
+      opacity: 1;
+      transform: translate(-50%, -150%) scale(1);
+    }
+
+    .modern-popup {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+      white-space: nowrap;
+    }
+
+    .modern-popup.error {
+      background: rgba(220, 38, 38, 0.85);
+      /* Red for errors */
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+  </style>
+
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <!-- App Container -->
+  <main id="app">
+    <!-- Info Overlay -->
+    <header id="info-panel" class="glass-panel">
+      <!-- Menu & Mode Switcher -->
+      <div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 12px;">
+        <!-- Mode Switcher -->
+        <div class="mode-switcher" style="margin-bottom: 0; flex: 1; display: flex; align-items: center;">
+          <button id="btn-lernen" class="mode-btn active">Lernen</button>
+          <button id="btn-spielen" class="mode-btn">Spielen</button>
+          <button id="btn-skip-target" title="Überspringen"
+            style="background: transparent; border: none; color: white; width: 36px; height: 36px; cursor: pointer; display: none; align-items: center; justify-content: center; margin-left: 4px; transition: opacity 0.3s; opacity: 0.8;"
+            onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 4 15 12 5 20 5 4"></polygon>
+              <line x1="19" y1="5" x2="19" y2="19"></line>
+            </svg>
+          </button>
+          <button id="btn-restart-game" title="Spiel neu starten"
+            style="background: transparent; border: none; color: white; width: 36px; height: 36px; cursor: pointer; display: none; align-items: center; justify-content: center; margin-left: 4px; transition: opacity 0.3s; opacity: 0.8;"
+            onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Settings Dropdown Toggle -->
+        <div class="settings-container"
+          style="position: relative; margin-left: 12px; display: flex; align-items: stretch;">
+          <button id="btn-settings" title="Einstellungen"
+            style="background: rgba(0,0,0,0.3); border: none; color: white; border-radius: 8px; width: 44px; height: auto; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">⚙️</button>
+          <div id="settings-menu" class="glass-panel hidden"
+            style="padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 12px;">
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label for="difficulty-select"
+                style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Schwierigkeit:</label>
+              <select id="difficulty-select" class="dropdown-select">
+                <option value="1">Tourist (Hauptstraßen)</option>
+                <option value="2">Anwohner (+ Nebenstraßen)</option>
+                <option value="3">Taxifahrer (Alle Wege)</option>
+              </select>
+            </div>
+
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label for="region-select"
+                style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Auswahl der Region:</label>
+              <select id="region-select" class="dropdown-select">
+                <option value="radius">Umkreis (Radius)</option>
+                <option value="custom">Eigene Karte</option>
+                <option value="mitte">Mitte</option>
+                <option value="friedrichshain_kreuzberg" selected>Friedrichshain-Kreuzberg</option>
+                <option value="pankow">Pankow</option>
+                <option value="charlottenburg_wilmersdorf">Charlottenburg-Wilmersdorf</option>
+                <option value="spandau">Spandau</option>
+                <option value="steglitz_zehlendorf">Steglitz-Zehlendorf</option>
+                <option value="tempelhof_schoeneberg">Tempelhof-Schöneberg</option>
+                <option value="neukoelln">Neukölln</option>
+                <option value="treptow_koepenick">Treptow-Köpenick</option>
+                <option value="marzahn_hellersdorf">Marzahn-Hellersdorf</option>
+                <option value="lichtenberg">Lichtenberg</option>
+                <option value="reinickendorf">Reinickendorf</option>
+              </select>
+              <button id="btn-config-filter" class="action-btn hidden"
+                style="padding: 6px; font-size: 0.8rem; margin-top: 4px;">Karte laden / erstellen</button>
+
+              <div id="radius-config" class="hidden"
+                style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                <label for="radius-slider"
+                  style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Radius: <span
+                    id="radius-display">2</span> km</label>
+                <input type="range" id="radius-slider" min="1" max="5" step="1" value="2"
+                  style="width: 100%; accent-color: var(--accent-color);" />
+                <button id="btn-select-center" class="action-btn" style="padding: 6px; font-size: 0.8rem;">Zentrum auf
+                  Karte wählen</button>
+              </div>
+            </div>
+
+            <label
+              style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; color: var(--text-primary);">
+              <input type="checkbox" id="toggle-error-names" style="margin-right: 8px;" checked>
+              Namen bei Fehler zeigen
+            </label>
+
+            <label
+              style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; color: var(--text-primary);">
+              <input type="checkbox" id="toggle-hover-red" style="margin-right: 8px;" checked>
+              Namen bei Hover zeigen (wenn rot)
+            </label>
+
+            <label
+              style="display: flex; align-items: center; cursor: pointer; font-size: 0.9rem; color: var(--text-primary);">
+              <input type="checkbox" id="toggle-map-labels" style="margin-right: 8px;">
+              Kartenbeschriftung zeigen
+            </label>
+
+            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+              <label for="map-style-select"
+                style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600;">Karten-Stil:</label>
+              <select id="map-style-select" class="dropdown-select">
+                <option value="light">Positron (Hell)</option>
+                <option value="dark">Dark Matter (Dunkel)</option>
+                <option value="voyager" selected>Voyager (Bunt)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="lernen-content">
+        <h1 id="bezirk-title">Berlin</h1>
+        <p id="ortsteil-name">Wähle eine Straße</p>
+      </div>
+
+      <div id="spielen-content" class="hidden">
+        <p class="spielen-prompt">Finde:</p>
+        <h1 id="target-name">Mitte</h1>
+        <div class="game-status">
+          <div id="chances" class="chances">
+            <span class="chance dot"></span>
+            <span class="chance dot"></span>
+            <span class="chance dot"></span>
+          </div>
+          <span id="progress-text">0/0</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Statistics Modal -->
+    <div id="stats-modal" class="modal-overlay hidden">
+      <div class="modal-content glass-panel">
+        <h2>Statistik</h2>
+        <div class="stats-grid">
+          <div class="stat-box"><span class="stat-value" id="stat-time">00:00</span><span class="stat-label">Zeit</span>
+          </div>
+          <div class="stat-box green"><span class="stat-value" id="stat-green">0</span><span class="stat-label">1.
+              Versuch</span></div>
+          <div class="stat-box orange"><span class="stat-value" id="stat-orange">0</span><span class="stat-label">2./3.
+              Versuch</span></div>
+          <div class="stat-box red"><span class="stat-value" id="stat-red">0</span><span
+              class="stat-label">Fehler</span></div>
+        </div>
+        <button id="btn-restart" class="action-btn">Neu Spielen</button>
+      </div>
+    </div>
+
+    <!-- Custom Filter Modal -->
+    <div id="filter-modal" class="modal-overlay hidden">
+      <div class="modal-content glass-panel" style="max-width: 500px; padding: 20px;">
+        <h2 style="font-size: 1.5rem; margin-bottom: 16px;">Eigene Karte</h2>
+        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">
+          Lade eine benutzerdefinierte GeoJSON-Datei hoch, um eigene Orte und Straßen zu lernen.
+        </p>
+
+        <div style="margin-bottom: 24px;">
+          <input type="file" id="filter-file-upload" accept=".geojson,application/geo+json" style="display: none;" />
+          <label for="filter-file-upload" class="action-btn"
+            style="text-align: center; display: block; cursor: pointer; padding: 12px; font-size: 0.9rem; background: var(--accent-color);">Karte
+            hochladen (.geojson)</label>
+          <div id="filter-upload-status" style="margin-top: 8px; font-size: 0.85rem; color: #10b981; display: none;">
+            Datei erfolgreich geladen!</div>
+        </div>
+
+        <div style="margin-bottom: 24px; text-align: center;">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">Keine Datei? Erstelle deine
+            eigene Karte:</p>
+          <a href="editor.html" target="_blank" class="action-btn"
+            style="display: inline-block; background: var(--accent-color); color: white; text-decoration: none; font-size: 0.9rem;">
+            Zum Map Editor
+          </a>
+        </div>
+
+        <button id="btn-save-filter" class="action-btn" style="width: 100%;">Schließen</button>
+      </div>
+    </div>
+  </main>
+
+  <div id="custom-tooltip" class="modern-popup"></div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "berlinmemo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@turf/turf": "^7.3.5",
+    "node-fetch": "^2.7.0",
+    "osmtogeojson": "^3.0.0-beta.5",
+    "vite": "^5.0.0"
+  }
+}

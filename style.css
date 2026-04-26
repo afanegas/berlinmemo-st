@@ -1,0 +1,358 @@
+/* Reset and baseline */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --primary-font: 'Inter', sans-serif;
+  --glass-bg: rgba(18, 18, 20, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #F3F4F6;
+  --text-secondary: #9CA3AF;
+  --accent-color: #6366F1;
+}
+
+body, html {
+  height: 100%;
+  width: 100%;
+  font-family: var(--primary-font);
+  background-color: #0b0c10;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Map container needs to take all available space */
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+/* Glassmorphism Info Panel */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#info-panel {
+  position: absolute;
+  z-index: 1000;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#settings-menu {
+  position: absolute;
+  right: 0;
+  width: 280px;
+  z-index: 2000;
+}
+
+#bezirk-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #FFFFFF 0%, #A5B4FC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+#ortsteil-name {
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Desktop layout */
+@media (min-width: 768px) {
+  #info-panel {
+    top: 24px;
+    right: 24px;
+    width: 320px;
+  }
+  #settings-menu {
+    top: 44px;
+    bottom: auto;
+  }
+}
+
+/* Mobile layout */
+@media (max-width: 767px) {
+  #info-panel {
+    bottom: 24px;
+    left: 16px;
+    right: 16px;
+    padding: 20px;
+    border-radius: 20px;
+  }
+  #settings-menu {
+    bottom: calc(100% + 8px);
+    top: auto;
+  }
+  
+  /* Make room for Leaflet controls on mobile so they don't overlap the panel */
+  .leaflet-control-zoom {
+    margin-bottom: 120px !important;
+  }
+}
+
+/* Customizing Leaflet Tooltips & Popups to match theme */
+.leaflet-tooltip {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--text-primary) !important;
+  backdrop-filter: blur(12px) !important;
+  font-family: var(--primary-font) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+  padding: 6px 12px !important;
+}
+
+.leaflet-tooltip::before {
+  border-top-color: rgba(18, 18, 20, 0.8) !important;
+}
+.leaflet-tooltip-left::before { border-left-color: rgba(18, 18, 20, 0.8) !important; }
+.leaflet-tooltip-right::before { border-right-color: rgba(18, 18, 20, 0.8) !important; }
+.leaflet-tooltip-bottom::before { border-bottom-color: rgba(18, 18, 20, 0.8) !important; }
+
+/* ---------------------------------
+   Game UI & Modes CSS
+------------------------------------ */
+.hidden {
+  display: none !important;
+}
+
+/* Mode Switcher */
+.mode-switcher {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.mode-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--primary-font);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 8px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-btn.active {
+  background: var(--accent-color);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+/* Game Status UI */
+.spielen-prompt {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: -4px;
+}
+
+#target-name {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.game-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.chances {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  background-color: #ef4444; /* red heart/dot */
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  transition: all 0.3s;
+}
+
+.dot.lost {
+  background-color: rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+}
+
+#progress-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* Map Game Mode Classes */
+/* Flashing Red for wrong guess */
+@keyframes flashRed {
+  0% { fill-color: #ef4444; fill-opacity: 0.8; }
+  50% { fill-color: #ef4444; fill-opacity: 0.2; }
+  100% { fill-color: #ef4444; fill-opacity: 0.8; }
+}
+
+/* We have to apply these inline via Leaflet setStyle in JS, however CSS animations on SVG elements work if targeted */
+.flash-wrong {
+  animation: flashRed 0.4s ease 2;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.modal-content h2 {
+  font-size: 2rem;
+  margin-bottom: 24px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-box {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-box.green .stat-value { color: #10b981; }
+.stat-box.orange .stat-value { color: #f59e0b; }
+.stat-box.red .stat-value { color: #ef4444; }
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.action-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent-color);
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action-btn:hover {
+  background: #4f46e5;
+}
+
+/* Remove white rectangle on click */
+.leaflet-interactive:focus {
+  outline: none;
+}
+path.leaflet-interactive:focus {
+  outline: none;
+}
+
+/* Error Tooltip CSS */
+.error-tooltip {
+  background: rgba(239, 68, 68, 0.95) !important;
+  border: 1px solid #dc2626 !important;
+  color: white !important;
+  font-weight: 800 !important;
+}
+
+.error-tooltip::before {
+  border-top-color: rgba(239, 68, 68, 0.95) !important;
+}
+.leaflet-tooltip-left.error-tooltip::before { border-left-color: rgba(239, 68, 68, 0.95) !important; }
+.leaflet-tooltip-right.error-tooltip::before { border-right-color: rgba(239, 68, 68, 0.95) !important; }
+.leaflet-tooltip-bottom.error-tooltip::before { border-bottom-color: rgba(239, 68, 68, 0.95) !important; }
+
+/* Inactive Region */
+.inactive-region {
+  pointer-events: none !important;
+}
+
+/* Settings Dropdown Style */
+.dropdown-select {
+  width: 100%;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-family: var(--primary-font);
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.dropdown-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.dropdown-select option {
+  background: #121214;
+  color: var(--text-primary);
+}

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Berlin Straßen Map - Editor</title>
+    <meta name="description" content="Custom GeoJSON Map Editor for BerlinMemo." />
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+    
+    <style>
+    /* Add some specific styles for the editor */
+    #editor-sidebar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 340px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .editor-section {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .editor-section h3 {
+      font-size: 0.9rem;
+      margin-top: 0;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .search-results {
+      max-height: 200px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    .search-result-item {
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+    }
+    .search-result-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-btn.active {
+      background: var(--accent-color);
+      color: white;
+    }
+
+    .feature-list {
+      max-height: 150px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.8rem;
+    }
+
+    .feature-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 4px;
+    }
+    
+    .remove-btn {
+      background: rgba(220, 38, 38, 0.8);
+      border: none;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 2px 6px;
+      font-size: 0.7rem;
+    }
+    </style>
+    
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <main id="app">
+      <div id="editor-sidebar" class="glass-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h1 style="font-size: 1.2rem; margin: 0; background: linear-gradient(135deg, #FFFFFF 0%, #A5B4FC 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">GeoJSON Editor</h1>
+          <a href="index.html" style="color: var(--text-secondary); text-decoration: none; font-size: 0.85rem;">Zurück</a>
+        </div>
+        
+        <div class="editor-section">
+          <h3>Datei-Verwaltung</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="btn-new-map" class="action-btn" style="background: rgba(239, 68, 68, 0.8);">Neue Karte erstellen</button>
+            <input type="file" id="upload-geojson" accept=".geojson,application/geo+json" style="display: none;" />
+            <label for="upload-geojson" class="action-btn" style="text-align: center; display: block; cursor: pointer;">Basis GeoJSON laden</label>
+            <button id="btn-download" class="action-btn" style="background: #10b981;">Fertige Karte herunterladen</button>
+          </div>
+        </div>
+
+        <div class="editor-section">
+          <h3>Werkzeuge</h3>
+          <div style="display: flex; gap: 4px; margin-bottom: 12px;">
+            <button id="mode-street" class="mode-btn active" style="flex: 1; font-size: 0.8rem; padding: 6px;">Straße</button>
+            <button id="mode-point" class="mode-btn" style="flex: 1; font-size: 0.8rem; padding: 6px;">Punkt</button>
+            <button id="mode-note" class="mode-btn" style="flex: 1; font-size: 0.8rem; padding: 6px;">Bearbeiten</button>
+          </div>
+
+          <!-- Street Tool -->
+          <div id="tool-street">
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0;">Suche eine Straße im Master-Datensatz und füge sie hinzu.</p>
+            <input type="text" id="search-street-input" placeholder="Straßenname..." style="width: 100%; box-sizing: border-box; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; border-radius: 4px; font-size: 0.85rem;" />
+            <div id="search-results" class="search-results"></div>
+          </div>
+
+          <!-- Point Tool -->
+          <div id="tool-point" class="hidden">
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0;">Klicke auf die Karte, um einen Punkt zu setzen. Danach wirst du nach einem Namen gefragt.</p>
+          </div>
+
+          <!-- Note Tool -->
+          <div id="tool-note" class="hidden">
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0;">Klicke auf ein Element, um den Namen oder die Notiz zu ändern.</p>
+            <div id="note-editor" class="hidden" style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="text" id="note-target-name" placeholder="Name des Elements..." style="width: 100%; box-sizing: border-box; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; border-radius: 4px; font-size: 0.85rem;" />
+              <textarea id="note-input" placeholder="Notiz hier eingeben (optional)..." rows="3" style="width: 100%; box-sizing: border-box; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; border-radius: 4px; font-size: 0.85rem; font-family: inherit;"></textarea>
+              <button id="btn-save-note" class="action-btn" style="padding: 6px; font-size: 0.8rem;">Speichern</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-section">
+          <h3>Gespeicherte Elemente (<span id="feature-count">0</span>)</h3>
+          <div id="feature-list" class="feature-list">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Map Container -->
+      <div id="map"></div>
+
+      <!-- Custom Point Name Modal -->
+      <div id="point-name-modal" class="modal-overlay hidden" style="z-index: 1000;">
+        <div class="modal-content glass-panel" style="max-width: 400px; padding: 20px;">
+          <h2 style="font-size: 1.2rem; margin-top: 0; margin-bottom: 12px;">Neuer Punkt</h2>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Bitte gib einen Namen und (optional) Notizen für die neue Landmarke ein:
+          </p>
+          <input type="text" id="modal-point-name-input" placeholder="Name..." style="width: 100%; box-sizing: border-box; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; border-radius: 4px; font-size: 0.9rem; margin-bottom: 8px;" />
+          <textarea id="modal-point-note-input" placeholder="Notiz hier eingeben (optional)..." rows="3" style="width: 100%; box-sizing: border-box; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; border-radius: 4px; font-size: 0.9rem; margin-bottom: 20px; font-family: inherit;"></textarea>
+          
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-modal-point-cancel" class="action-btn" style="flex: 1; background: rgba(255,255,255,0.1);">Abbrechen</button>
+            <button id="btn-modal-point-save" class="action-btn" style="flex: 1; background: #10b981;">Speichern</button>
+          </div>
+        </div>
+      </div>
+      <!-- Custom Confirmation Modal -->
+      <div id="confirm-modal" class="modal-overlay hidden" style="z-index: 1100;">
+        <div class="modal-content glass-panel" style="max-width: 400px; padding: 20px;">
+          <h2 style="font-size: 1.2rem; margin-top: 0; margin-bottom: 12px;">Neue Karte</h2>
+          <p id="confirm-modal-message" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 24px;">
+            Möchtest du wirklich eine neue Karte beginnen? Alle ungespeicherten Änderungen gehen verloren.
+          </p>
+          
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-confirm-cancel" class="action-btn" style="flex: 1; background: rgba(255,255,255,0.1);">Abbrechen</button>
+            <button id="btn-confirm-ok" class="action-btn" style="flex: 1; background: #ef4444;">Ja, neue Karte</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="./editor.js"></script>
+  </body>
+</html>
