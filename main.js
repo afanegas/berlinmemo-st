@@ -68,7 +68,7 @@ const appState = {
 const map = new maplibregl.Map({
   dragRotate: false,
   touchPitch: false,
-  touchZoomRotate: false,
+  touchZoomRotate: true,
   container: 'map',
   style: {
     version: 8,
@@ -112,6 +112,9 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+
+// Disable rotation but keep pinch-to-zoom
+map.touchZoomRotate.disableRotation();
 
 let mapLoaded = false;
 let currentGeojsonData = null;

@@ -109,8 +109,9 @@ body, html {
   #settings-menu {
     bottom: calc(100% + 8px);
     top: auto;
-    width: auto;
-    left: 0;
+    width: 280px;
+    min-width: 280px;
+    left: auto;
     right: 0;
   }
   
