@@ -66,6 +66,9 @@ const appState = {
 
 // Initialize MapLibre Map
 const map = new maplibregl.Map({
+  dragRotate: false,
+  touchPitch: false,
+  touchZoomRotate: false,
   container: 'map',
   style: {
     version: 8,
@@ -108,7 +111,7 @@ const map = new maplibregl.Map({
   attributionControl: false
 });
 map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
-map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
 let mapLoaded = false;
 let currentGeojsonData = null;
@@ -131,6 +134,7 @@ const progressTextEl = document.getElementById('progress-text');
 const dots = document.querySelectorAll('.dot');
 const statsModal = document.getElementById('stats-modal');
 const btnRestart = document.getElementById('btn-restart');
+const btnCloseStats = document.getElementById('btn-close-stats');
 
 const toggleErrorNames = document.getElementById('toggle-error-names');
 const toggleHoverRed = document.getElementById('toggle-hover-red');
@@ -198,12 +202,12 @@ map.on('load', () => {
   map.addSource('radius-circle', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({
     id: 'radius-circle-layer',
-    type: 'fill',
+    type: 'line',
     source: 'radius-circle',
     paint: {
-      'fill-color': '#1e40af',
-      'fill-opacity': 0.15,
-      'fill-outline-color': '#3b82f6'
+      'line-color': '#3b82f6',
+      'line-width': 3,
+      'line-dasharray': [2, 1]
     }
   });
 
@@ -295,6 +299,11 @@ function setupMapInteractions() {
 
   // Hover effect using map-wide mousemove
   map.on('mousemove', (e) => {
+    if (appState.radiusMode.isSelectingCenter) {
+      map.getCanvas().style.cursor = 'crosshair';
+      return;
+    }
+
     const feature = getFeatureAtPoint(e.point);
     
     if (feature) {
@@ -318,9 +327,9 @@ function setupMapInteractions() {
       if (appState.mode === 'lernen' || (appState.mode === 'spielen' && !appState.spielen.inProgress)) {
         showTooltip = true;
       } else if (appState.mode === 'spielen' && appState.spielen.inProgress && toggleHoverRed && toggleHoverRed.checked) {
-        // Check if feature is red
+        // Check if feature is answered (green, orange, or red)
         const state = map.getFeatureState({ source: 'streets', id: feature.id });
-        if (state && state.state === 'red') {
+        if (state && state.state) {
           showTooltip = true;
         }
       }
@@ -411,6 +420,11 @@ btnRestart.addEventListener('click', () => {
   appState.spielen.inProgress = false;
   switchMode('spielen');
 });
+if (btnCloseStats) {
+  btnCloseStats.addEventListener('click', () => {
+    statsModal.classList.add('hidden');
+  });
+}
 if (btnRestartGame) {
   btnRestartGame.addEventListener('click', () => {
     appState.spielen.inProgress = false;
@@ -483,7 +497,7 @@ radiusSlider.addEventListener('input', (e) => {
 });
 
 radiusSlider.addEventListener('change', (e) => {
-  appState.radiusMode.radiusKm = parseInt(e.target.value);
+  appState.radiusMode.radiusKm = parseFloat(e.target.value);
   if (appState.radiusMode.active && appState.radiusMode.hasCenter) {
     loadStreetData(appState.difficulty, appState.region);
   }
@@ -510,6 +524,13 @@ difficultySelect.addEventListener('change', () => {
 document.getElementById('btn-settings').addEventListener('click', (e) => {
   document.getElementById('settings-menu').classList.toggle('hidden');
 });
+
+const btnCloseSettings = document.getElementById('btn-close-settings');
+if (btnCloseSettings) {
+  btnCloseSettings.addEventListener('click', () => {
+    document.getElementById('settings-menu').classList.add('hidden');
+  });
+}
 
 document.addEventListener('click', (e) => {
   const settingsMenu = document.getElementById('settings-menu');
@@ -600,12 +621,59 @@ if (filterFileUpload) {
   });
 }
 
+function updateMapStylesForMode(mode) {
+  if (!mapLoaded) return;
+  const isSpielen = (mode === 'spielen');
+
+  // Update Line Style
+  map.setPaintProperty('streets-layer', 'line-color', [
+    'case',
+    ['all', ['literal', isSpielen], ['==', ['feature-state', 'state'], 'green']], '#10b981',
+    ['all', ['literal', isSpielen], ['==', ['feature-state', 'state'], 'orange']], '#f59e0b',
+    ['all', ['literal', isSpielen], ['==', ['feature-state', 'state'], 'red']], '#ef4444',
+    ['boolean', ['feature-state', 'hover'], false], '#1e3a8a',
+    ['boolean', ['feature-state', 'selected'], false], '#1e3a8a',
+    '#3b82f6' // default
+  ], { validate: false });
+
+  map.setPaintProperty('streets-layer', 'line-width', [
+    'case',
+    ['boolean', ['feature-state', 'hover'], false], 8,
+    ['boolean', ['feature-state', 'selected'], false], 8,
+    ['all', ['literal', isSpielen], ['!=', ['feature-state', 'state'], null]], 6,
+    4 // default
+  ], { validate: false });
+
+  // Update Point Style
+  if (map.getLayer('streets-point-layer')) {
+    map.setPaintProperty('streets-point-layer', 'circle-color', [
+      'case',
+      ['all', ['literal', isSpielen], ['==', ['feature-state', 'state'], 'green']], '#10b981',
+      ['all', ['literal', isSpielen], ['==', ['feature-state', 'state'], 'orange']], '#f59e0b',
+      ['all', ['literal', isSpielen], ['==', ['feature-state', 'state'], 'red']], '#ef4444',
+      ['boolean', ['feature-state', 'hover'], false], '#1e3a8a',
+      ['boolean', ['feature-state', 'selected'], false], '#1e3a8a',
+      '#3b82f6' // default
+    ], { validate: false });
+
+    map.setPaintProperty('streets-point-layer', 'circle-radius', [
+      'case',
+      ['boolean', ['feature-state', 'hover'], false], 10,
+      ['boolean', ['feature-state', 'selected'], false], 10,
+      ['all', ['literal', isSpielen], ['!=', ['feature-state', 'state'], null]], 9,
+      7 // default
+    ], { validate: false });
+  }
+}
+
 function switchMode(mode) {
   if (appState.mode === 'spielen' && mode !== 'spielen' && appState.spielen.inProgress) {
     appState.spielen.elapsedBefore += (new Date() - appState.spielen.lastStartTime);
   }
   
   appState.mode = mode;
+  updateMapStylesForMode(mode);
+
   if (mode === 'lernen') {
     btnLernen.classList.add('active');
     btnSpielen.classList.remove('active');
@@ -629,8 +697,9 @@ function switchMode(mode) {
 
 function resetLernenMode() {
   if (!mapLoaded || !currentGeojsonData) return;
-  // Clear all states
-  map.removeFeatureState({ source: 'streets' });
+  // Clear only temporary interaction states, keep 'state' (game progress)
+  map.removeFeatureState({ source: 'streets' }, 'hover');
+  map.removeFeatureState({ source: 'streets' }, 'selected');
   selectedFeatureId = null;
   hoveredFeatureId = null;
   resetHeaderInfo();
@@ -711,7 +780,20 @@ function handleSpielenClick(feature, lngLat) {
 
   // Check if already guessed
   const state = map.getFeatureState({ source: 'streets', id: feature.id });
-  if (state && state.state) return; // already colored
+  if (state && state.state) {
+    // If setting is active, show the name popup even if already guessed
+    if (toggleHoverRed && toggleHoverRed.checked) {
+      const el = document.createElement('div');
+      el.className = `modern-popup ${state.state === 'red' ? 'error' : ''} visible`;
+      el.textContent = feature.properties.name;
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat(lngLat)
+        .addTo(map);
+      
+      setTimeout(() => marker.remove(), 1200);
+    }
+    return;
+  }
 
   appState.spielen.attempts++;
   
@@ -874,8 +956,8 @@ async function loadStreetData(level, regionId) {
         cachedMasterData = await resp.json();
       }
       data = cachedMasterData;
-    } else {
-      const url = regionId === 'custom' ? `./berlin_streets_1.geojson` : `./streets_${regionId}.geojson`;
+    } else if (regionId !== 'custom') {
+      const url = `./streets_${regionId}.geojson`;
       const resp = await fetch(url);
       data = await resp.json();
     }

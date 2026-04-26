@@ -296,14 +296,19 @@ searchInput.addEventListener('input', (e) => {
   searchResults.innerHTML = '';
   if (q.length < 2 || !masterData) return;
 
-  // Group by name to avoid showing 50 segments of the same street
+  // Group by name and location (OTEIL/BEZIRK) to separate same-named streets in different areas
   const uniqueMatches = new Map();
   masterData.features.forEach(f => {
     if (f.properties.name && f.properties.name.toLowerCase().includes(q)) {
-      if (!uniqueMatches.has(f.properties.name)) {
-        uniqueMatches.set(f.properties.name, {
+      const bezirk = f.properties.BEZIRK || 'Unbekannt';
+      const oteil = f.properties.OTEIL || 'Unbekannt';
+      const uniqueKey = `${f.properties.name}__${oteil}__${bezirk}`;
+
+      if (!uniqueMatches.has(uniqueKey)) {
+        uniqueMatches.set(uniqueKey, {
           name: f.properties.name,
-          bezirk: f.properties.BEZIRK || 'Unbekannt'
+          bezirk: bezirk,
+          oteil: oteil
         });
       }
     }
@@ -314,10 +319,20 @@ searchInput.addEventListener('input', (e) => {
   matches.forEach(m => {
     const el = document.createElement('div');
     el.className = 'search-result-item';
-    el.innerHTML = `<span>${m.name} <small style="opacity:0.6;">(${m.bezirk})</small></span> <span>+</span>`;
+    
+    let locationText = m.bezirk;
+    if (m.oteil && m.oteil !== 'Unbekannt' && m.oteil !== 'Unknown' && m.oteil !== m.bezirk) {
+      locationText = `${m.oteil}, ${m.bezirk}`;
+    }
+
+    el.innerHTML = `<span>${m.name} <small style="opacity:0.6;">(${locationText})</small></span> <span>+</span>`;
     el.onclick = () => {
-      // Find all segments of this street in masterData
-      const segments = masterData.features.filter(f => f.properties.name === m.name);
+      // Find all segments of this street in masterData that match name AND location
+      const segments = masterData.features.filter(f => 
+        f.properties.name === m.name && 
+        (f.properties.BEZIRK || 'Unbekannt') === m.bezirk &&
+        (f.properties.OTEIL || 'Unbekannt') === m.oteil
+      );
       if (segments.length === 0) return;
       
       let allCoords = [];

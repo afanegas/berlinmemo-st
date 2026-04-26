@@ -109,6 +109,15 @@ body, html {
   #settings-menu {
     bottom: calc(100% + 8px);
     top: auto;
+    width: auto;
+    left: 0;
+    right: 0;
+  }
+  
+  #btn-close-settings {
+    display: block !important;
+    height: 32px;
+    width: 100%;
   }
   
   /* Make room for Leaflet controls on mobile so they don't overlap the panel */
