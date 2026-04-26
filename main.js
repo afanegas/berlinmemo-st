@@ -277,57 +277,68 @@ map.on('load', () => {
   loadStreetData(appState.difficulty, appState.region);
 });
 
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const CLICK_TOLERANCE = isMobile ? 14 : 4;
+
 function setupMapInteractions() {
   const interactiveLayers = ['streets-layer', 'streets-point-layer'];
 
-  // Hover effect
-  interactiveLayers.forEach(layer => {
-    map.on('mousemove', layer, (e) => {
-      if (e.features.length > 0) {
-        map.getCanvas().style.cursor = 'pointer';
-        const feature = e.features[0];
-        const id = feature.id;
+  // Helper to find features under/near a point
+  const getFeatureAtPoint = (point) => {
+    const bbox = [
+      [point.x - CLICK_TOLERANCE, point.y - CLICK_TOLERANCE],
+      [point.x + CLICK_TOLERANCE, point.y + CLICK_TOLERANCE]
+    ];
+    const features = map.queryRenderedFeatures(bbox, { layers: interactiveLayers });
+    return features.length > 0 ? features[0] : null;
+  };
 
-        if (hoveredFeatureId !== id) {
-          if (hoveredFeatureId !== null) {
-            map.setFeatureState({ source: 'streets', id: hoveredFeatureId }, { hover: false });
-          }
-          hoveredFeatureId = id;
-          map.setFeatureState({ source: 'streets', id: hoveredFeatureId }, { hover: true });
-          
-          if (appState.mode === 'lernen') {
-            updateHeaderInfo(feature.properties.name, feature.properties.BEZIRK || 'Unbekannt');
-          }
+  // Hover effect using map-wide mousemove
+  map.on('mousemove', (e) => {
+    const feature = getFeatureAtPoint(e.point);
+    
+    if (feature) {
+      map.getCanvas().style.cursor = 'pointer';
+      const id = feature.id;
+
+      if (hoveredFeatureId !== id) {
+        if (hoveredFeatureId !== null) {
+          map.setFeatureState({ source: 'streets', id: hoveredFeatureId }, { hover: false });
         }
-
-        // Tooltip position and content
-        let showTooltip = false;
-        if (appState.mode === 'lernen' || (appState.mode === 'spielen' && !appState.spielen.inProgress)) {
-          showTooltip = true;
-        } else if (appState.mode === 'spielen' && appState.spielen.inProgress && toggleHoverRed && toggleHoverRed.checked) {
-          // Check if feature is red
-          const state = map.getFeatureState({ source: 'streets', id: feature.id });
-          if (state && state.state === 'red') {
-            showTooltip = true;
-          }
-        }
-
-        if (showTooltip) {
-          let tooltipHtml = feature.properties.name;
-          if (feature.properties.notes) {
-            tooltipHtml += `<br><span style="font-size: 0.8em; opacity: 0.8;">${feature.properties.notes}</span>`;
-          }
-          customTooltip.innerHTML = tooltipHtml;
-          customTooltip.style.left = e.point.x + 'px';
-          customTooltip.style.top = e.point.y + 'px';
-          customTooltip.classList.add('visible');
-        } else {
-          customTooltip.classList.remove('visible');
+        hoveredFeatureId = id;
+        map.setFeatureState({ source: 'streets', id: hoveredFeatureId }, { hover: true });
+        
+        if (appState.mode === 'lernen') {
+          updateHeaderInfo(feature.properties.name, feature.properties.BEZIRK || 'Unbekannt');
         }
       }
-    });
 
-    map.on('mouseleave', layer, () => {
+      // Tooltip position and content
+      let showTooltip = false;
+      if (appState.mode === 'lernen' || (appState.mode === 'spielen' && !appState.spielen.inProgress)) {
+        showTooltip = true;
+      } else if (appState.mode === 'spielen' && appState.spielen.inProgress && toggleHoverRed && toggleHoverRed.checked) {
+        // Check if feature is red
+        const state = map.getFeatureState({ source: 'streets', id: feature.id });
+        if (state && state.state === 'red') {
+          showTooltip = true;
+        }
+      }
+
+      if (showTooltip) {
+        let tooltipHtml = feature.properties.name;
+        if (feature.properties.notes) {
+          tooltipHtml += `<br><span style="font-size: 0.8em; opacity: 0.8;">${feature.properties.notes}</span>`;
+        }
+        customTooltip.innerHTML = tooltipHtml;
+        customTooltip.style.left = e.point.x + 'px';
+        customTooltip.style.top = e.point.y + 'px';
+        customTooltip.classList.add('visible');
+      } else {
+        customTooltip.classList.remove('visible');
+      }
+    } else {
+      // No feature found
       map.getCanvas().style.cursor = '';
       customTooltip.classList.remove('visible');
       if (hoveredFeatureId !== null) {
@@ -343,29 +354,12 @@ function setupMapInteractions() {
           resetHeaderInfo();
         }
       }
-    });
-  });
-
-  map.on('mouseleave', 'streets-layer', () => {
-    map.getCanvas().style.cursor = '';
-    customTooltip.classList.remove('visible');
-    if (hoveredFeatureId !== null) {
-      map.setFeatureState({ source: 'streets', id: hoveredFeatureId }, { hover: false });
-      hoveredFeatureId = null;
-    }
-    if (appState.mode === 'lernen') {
-      if (selectedFeatureId !== null) {
-        // Keep header showing selected feature
-        const f = currentGeojsonData.features.find(f => f.id === selectedFeatureId);
-        if (f) updateHeaderInfo(f.properties.name, f.properties.BEZIRK);
-      } else {
-        resetHeaderInfo();
-      }
     }
   });
 
-  // Map clicks for center selection
+  // Handle map clicks
   map.on('click', (e) => {
+    // 1. Center selection mode
     if (appState.radiusMode.isSelectingCenter) {
       appState.radiusMode.center = [e.lngLat.lng, e.lngLat.lat];
       appState.radiusMode.isSelectingCenter = false;
@@ -376,15 +370,10 @@ function setupMapInteractions() {
       loadStreetData(appState.difficulty, appState.region);
       return;
     }
-  });
 
-  // Click effect
-  interactiveLayers.forEach(layer => {
-    map.on('click', layer, (e) => {
-      if (appState.radiusMode.isSelectingCenter) return; // Ignore if selecting center
-      if (e.features.length === 0) return;
-      const feature = e.features[0];
-      
+    // 2. Interactive features selection (Lernen or Spielen)
+    const feature = getFeatureAtPoint(e.point);
+    if (feature) {
       if (appState.mode === 'lernen') {
         if (selectedFeatureId !== null) {
           map.setFeatureState({ source: 'streets', id: selectedFeatureId }, { selected: false });
@@ -395,7 +384,7 @@ function setupMapInteractions() {
       } else if (appState.mode === 'spielen') {
         handleSpielenClick(feature, e.lngLat);
       }
-    });
+    }
   });
 }
 

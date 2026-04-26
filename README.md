@@ -1,6 +1,8 @@
-# BerlinMemo
+# BerlinMemo-St
 
 An interactive geography game to learn and master the streets of Berlin. Explore the city in **Learning Mode** or test your knowledge in **Challenge Mode**.
+
+Live Demo: https://berlinmemo-st.vercel.app/
 
 ### Technology Stack
 - **Frontend**: HTML5, Vanilla CSS, and JavaScript (ES6+).

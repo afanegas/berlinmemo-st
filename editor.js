@@ -102,24 +102,42 @@ map.on('load', async () => {
   });
 
   // Interaction for Note tool
+  const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const CLICK_TOLERANCE = isMobile ? 14 : 4;
+
+  // Interaction for Note tool
   const interactiveLayers = ['custom-lines', 'custom-points'];
-  interactiveLayers.forEach(layer => {
-    map.on('mouseenter', layer, () => {
-      if (activeMode === 'note') map.getCanvas().style.cursor = 'pointer';
-    });
-    map.on('mouseleave', layer, () => {
+
+  // Helper to find features under/near a point
+  const getFeatureAtPoint = (point) => {
+    const bbox = [
+      [point.x - CLICK_TOLERANCE, point.y - CLICK_TOLERANCE],
+      [point.x + CLICK_TOLERANCE, point.y + CLICK_TOLERANCE]
+    ];
+    const features = map.queryRenderedFeatures(bbox, { layers: interactiveLayers });
+    return features.length > 0 ? features[0] : null;
+  };
+
+  map.on('mousemove', (e) => {
+    const feature = getFeatureAtPoint(e.point);
+    if (feature && activeMode === 'note') {
+      map.getCanvas().style.cursor = 'pointer';
+    } else {
       map.getCanvas().style.cursor = activeMode === 'point' ? 'crosshair' : '';
-    });
-    map.on('click', layer, (e) => {
-      if (activeMode === 'note') {
-        const feature = e.features[0];
-        selectFeatureForNote(feature.id);
-      }
-    });
+    }
   });
 
-  // Map click for Point tool
   map.on('click', (e) => {
+    // 1. Note mode
+    if (activeMode === 'note') {
+      const feature = getFeatureAtPoint(e.point);
+      if (feature) {
+        selectFeatureForNote(feature.id);
+        return;
+      }
+    }
+
+    // 2. Point tool
     if (activeMode === 'point') {
       pendingPointData = { lng: e.lngLat.lng, lat: e.lngLat.lat };
       modalPointNameInput.value = '';
