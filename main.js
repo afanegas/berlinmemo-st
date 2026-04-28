@@ -290,14 +290,65 @@ const CLICK_TOLERANCE = isMobile ? 14 : 4;
 function setupMapInteractions() {
   const interactiveLayers = ['streets-layer', 'streets-point-layer'];
 
-  // Helper to find features under/near a point
+  // Distance from point P to line segment AB (all in screen pixels)
+  const pointToSegmentDist = (p, a, b) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  };
+
+  // Minimum pixel distance from a screen point to a feature's rendered geometry
+  const distToFeature = (pt, feature) => {
+    const geom = feature.geometry;
+    if (geom.type === 'Point') {
+      const proj = map.project(geom.coordinates);
+      return Math.hypot(pt.x - proj.x, pt.y - proj.y);
+    }
+    // Extract coordinate rings for any line/polygon type
+    let rings;
+    if (geom.type === 'LineString') rings = [geom.coordinates];
+    else if (geom.type === 'MultiLineString' || geom.type === 'Polygon') rings = geom.coordinates;
+    else if (geom.type === 'MultiPolygon') rings = geom.coordinates.flat();
+    else return Infinity;
+
+    let min = Infinity;
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length - 1; i++) {
+        const a = map.project(ring[i]);
+        const b = map.project(ring[i + 1]);
+        const d = pointToSegmentDist(pt, a, b);
+        if (d < min) min = d;
+      }
+      if (ring.length === 1) {
+        const p = map.project(ring[0]);
+        const d = Math.hypot(pt.x - p.x, pt.y - p.y);
+        if (d < min) min = d;
+      }
+    }
+    return min;
+  };
+
+  // Helper to find the nearest feature under/near a point
   const getFeatureAtPoint = (point) => {
     const bbox = [
       [point.x - CLICK_TOLERANCE, point.y - CLICK_TOLERANCE],
       [point.x + CLICK_TOLERANCE, point.y + CLICK_TOLERANCE]
     ];
     const features = map.queryRenderedFeatures(bbox, { layers: interactiveLayers });
-    return features.length > 0 ? features[0] : null;
+    if (features.length === 0) return null;
+    if (features.length === 1) return features[0];
+
+    // Pick the feature whose geometry is closest to the tap point
+    let closest = null;
+    let minDist = Infinity;
+    for (const f of features) {
+      const d = distToFeature(point, f);
+      if (d < minDist) { minDist = d; closest = f; }
+    }
+    return closest;
   };
 
   // Hover effect using map-wide mousemove
@@ -329,11 +380,13 @@ function setupMapInteractions() {
       let showTooltip = false;
       if (appState.mode === 'lernen' || (appState.mode === 'spielen' && !appState.spielen.inProgress)) {
         showTooltip = true;
-      } else if (appState.mode === 'spielen' && appState.spielen.inProgress && toggleHoverRed && toggleHoverRed.checked) {
-        // Check if feature is answered (green, orange, or red)
-        const state = map.getFeatureState({ source: 'streets', id: feature.id });
-        if (state && state.state) {
-          showTooltip = true;
+      }
+      // On touch devices during spielen, skip hover tooltip for already-played streets
+      // since the click handler shows its own popup — avoids duplicate popups
+      if (isMobile && appState.mode === 'spielen' && appState.spielen.inProgress) {
+        const featureState = map.getFeatureState({ source: 'streets', id: feature.id });
+        if (featureState && featureState.state) {
+          showTooltip = false;
         }
       }
 
@@ -394,6 +447,8 @@ function setupMapInteractions() {
         map.setFeatureState({ source: 'streets', id: selectedFeatureId }, { selected: true });
         updateHeaderInfo(feature.properties.name, feature.properties.BEZIRK || 'Unbekannt');
       } else if (appState.mode === 'spielen') {
+        // Hide hover tooltip on click to prevent duplicate popups
+        customTooltip.classList.remove('visible');
         handleSpielenClick(feature, e.lngLat);
       }
     }
@@ -701,10 +756,14 @@ function switchMode(mode) {
 function resetLernenMode() {
   if (!mapLoaded || !currentGeojsonData) return;
   // Clear only temporary interaction states, keep 'state' (game progress)
-  map.removeFeatureState({ source: 'streets' }, 'hover');
-  map.removeFeatureState({ source: 'streets' }, 'selected');
-  selectedFeatureId = null;
-  hoveredFeatureId = null;
+  if (hoveredFeatureId !== null) {
+    map.removeFeatureState({ source: 'streets', id: hoveredFeatureId }, 'hover');
+    hoveredFeatureId = null;
+  }
+  if (selectedFeatureId !== null) {
+    map.removeFeatureState({ source: 'streets', id: selectedFeatureId }, 'selected');
+    selectedFeatureId = null;
+  }
   resetHeaderInfo();
   fitMapToBounds();
 }
