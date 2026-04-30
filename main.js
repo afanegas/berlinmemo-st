@@ -44,13 +44,13 @@ const appState = {
   mode: 'lernen', // 'lernen' | 'spielen'
   customGeojson: null, // Stores the uploaded FeatureCollection
   difficulty: 1, // 1: Tourist, 2: Resident, 3: Taxi Driver
-  region: 'friedrichshain_kreuzberg',
+  region: 'radius',
   radiusMode: {
-    active: false,
-    center: null,
+    active: true,
+    center: [13.4125, 52.5219], // Alexanderplatz
     radiusKm: 2,
     isSelectingCenter: false,
-    hasCenter: false
+    hasCenter: true
   },
   spielen: {
     inProgress: false,
@@ -197,6 +197,12 @@ map.on('load', () => {
     } catch (e) {
       console.error("Error loading custom map from localStorage", e);
     }
+  }
+
+  // Set initial UI for radius mode if no custom map overrode it
+  if (appState.region === 'radius') {
+    regionSelect.value = 'radius';
+    radiusConfig.classList.remove('hidden');
   }
 
   syncDifficultyState();
